@@ -1,0 +1,258 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>2048 Merge</title>
+  <link rel="stylesheet" href="/games/game-shell.css" />
+  <style>
+    .board-wrap {
+      width: 100%;
+      max-width: 390px;
+      aspect-ratio: 1 / 1;
+      background: #161e29;
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      border-radius: 12px;
+      padding: 12px;
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      grid-template-rows: repeat(4, 1fr);
+      gap: 10px;
+      touch-action: none;
+    }
+    .tile {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      border-radius: 8px;
+      font-weight: 700;
+      font-size: 26px;
+      font-variant-numeric: tabular-nums;
+      background: #1f2937;
+      color: #f8fafc;
+      transition: transform 120ms ease, background-color 120ms ease;
+    }
+    .t-0 { background: #1d2532; color: transparent; }
+    .t-2 { background: #e2e8f0; color: #0f172a; }
+    .t-4 { background: #cbd5e1; color: #0f172a; }
+    .t-8 { background: #fb923c; color: #0b0f14; }
+    .t-16 { background: #f97316; color: #ffffff; }
+    .t-32 { background: #ef4444; color: #ffffff; }
+    .t-64 { background: #dc2626; color: #ffffff; }
+    .t-128 { background: #fbbf24; color: #0b0f14; font-size: 22px; }
+    .t-256 { background: #f59e0b; color: #0b0f14; font-size: 22px; }
+    .t-512 { background: #d97706; color: #ffffff; font-size: 22px; }
+    .t-1024 { background: #10b981; color: #0b0f14; font-size: 18px; }
+    .t-2048 { background: #34d399; color: #0b0f14; font-size: 18px; }
+    .t-high { background: #38bdf8; color: #0b0f14; font-size: 18px; }
+  </style>
+</head>
+<body>
+  <div class="game-shell">
+    <header class="hud">
+      <div class="hud-title">2048 Merge</div>
+      <div class="hud-stats">
+        <span class="hud-stat">Score<strong id="score">0</strong></span>
+        <span class="hud-stat">Best<strong id="best">0</strong></span>
+      </div>
+      <div class="hud-actions">
+        <button class="btn" id="restartBtn" type="button">New Game</button>
+        <button class="btn" id="muteBtn" type="button">Sound: On</button>
+      </div>
+    </header>
+
+    <main class="stage">
+      <div class="board-wrap" id="board" aria-label="2048 puzzle grid"></div>
+
+      <div class="overlay hidden" id="overlay">
+        <div class="overlay-card">
+          <h2 id="overlayTitle">No Moves Left</h2>
+          <div class="overlay-score" id="overlayScore">0</div>
+          <p id="overlayText">Combine matching tiles with Arrow keys, WASD, or swipe.</p>
+          <div class="overlay-actions">
+            <button class="btn btn-primary" id="playAgainBtn" type="button">Play Again</button>
+          </div>
+        </div>
+      </div>
+    </main>
+  </div>
+
+  <script src="/games/game-audio.js"></script>
+  <script>
+    (function () {
+      const boardEl = document.getElementById('board');
+      const scoreEl = document.getElementById('score');
+      const bestEl = document.getElementById('best');
+      const restartBtn = document.getElementById('restartBtn');
+      const muteBtn = document.getElementById('muteBtn');
+      const overlay = document.getElementById('overlay');
+      const overlayTitle = document.getElementById('overlayTitle');
+      const overlayScore = document.getElementById('overlayScore');
+      const overlayText = document.getElementById('overlayText');
+      const playAgainBtn = document.getElementById('playAgainBtn');
+
+      GameAudio.syncButton(muteBtn);
+
+      let grid = [];
+      let score = 0;
+      let best = Number(localStorage.getItem('arcadedeck_2048_best') || 0);
+      let wonOnce = false;
+      bestEl.textContent = String(best);
+
+      function init() {
+        grid = Array.from({ length: 4 }, function () { return [0, 0, 0, 0]; });
+        score = 0;
+        wonOnce = false;
+        scoreEl.textContent = '0';
+        overlay.classList.add('hidden');
+        addTile();
+        addTile();
+        render();
+      }
+
+      function addTile() {
+        const empty = [];
+        for (let r = 0; r < 4; r++) {
+          for (let c = 0; c < 4; c++) {
+            if (grid[r][c] === 0) empty.push({ r: r, c: c });
+          }
+        }
+        if (empty.length === 0) return false;
+        const spot = empty[Math.floor(Math.random() * empty.length)];
+        grid[spot.r][spot.c] = Math.random() < 0.9 ? 2 : 4;
+        return true;
+      }
+
+      function render() {
+        boardEl.innerHTML = '';
+        for (let r = 0; r < 4; r++) {
+          for (let c = 0; c < 4; c++) {
+            const val = grid[r][c];
+            const tile = document.createElement('div');
+            const cls = val <= 2048 ? 't-' + val : 't-high';
+            tile.className = 'tile ' + cls;
+            tile.textContent = val === 0 ? '' : String(val);
+            boardEl.appendChild(tile);
+          }
+        }
+      }
+
+      function slideLine(line) {
+        const filtered = line.filter(function (v) { return v !== 0; });
+        const result = [];
+        let gained = 0;
+        for (let i = 0; i < filtered.length; i++) {
+          if (i + 1 < filtered.length && filtered[i] === filtered[i + 1]) {
+            const merged = filtered[i] * 2;
+            result.push(merged);
+            gained += merged;
+            if (merged === 2048 && !wonOnce) {
+              wonOnce = true;
+              GameAudio.win();
+            }
+            i++;
+          } else {
+            result.push(filtered[i]);
+          }
+        }
+        while (result.length < 4) result.push(0);
+        return { line: result, gained: gained };
+      }
+
+      function move(dir) {
+        let moved = false;
+        let gainedTotal = 0;
+        const next = grid.map(function (row) { return row.slice(); });
+
+        if (dir === 'left' || dir === 'right') {
+          for (let r = 0; r < 4; r++) {
+            let row = next[r].slice();
+            if (dir === 'right') row.reverse();
+            const res = slideLine(row);
+            if (dir === 'right') res.line.reverse();
+            if (res.line.some(function (v, idx) { return v !== next[r][idx]; })) moved = true;
+            next[r] = res.line;
+            gainedTotal += res.gained;
+          }
+        } else {
+          for (let c = 0; c < 4; c++) {
+            let col = [next[0][c], next[1][c], next[2][c], next[3][c]];
+            if (dir === 'down') col.reverse();
+            const res = slideLine(col);
+            if (dir === 'down') res.line.reverse();
+            for (let r = 0; r < 4; r++) {
+              if (res.line[r] !== next[r][c]) moved = true;
+              next[r][c] = res.line[r];
+            }
+            gainedTotal += res.gained;
+          }
+        }
+
+        if (!moved) return;
+        grid = next;
+        score += gainedTotal;
+        scoreEl.textContent = String(score);
+        if (score > best) {
+          best = score;
+          bestEl.textContent = String(best);
+          localStorage.setItem('arcadedeck_2048_best', String(best));
+        }
+        if (gainedTotal > 0) GameAudio.score();
+        else GameAudio.blip();
+
+        addTile();
+        render();
+
+        if (!hasMoves()) {
+          GameAudio.over();
+          overlayTitle.textContent = wonOnce ? '2048 Achieved!' : 'No Moves Left';
+          overlayScore.textContent = 'Score: ' + score;
+          overlayText.textContent = 'Board full. Start a fresh tray to chase a higher score.';
+          overlay.classList.remove('hidden');
+        }
+      }
+
+      function hasMoves() {
+        for (let r = 0; r < 4; r++) {
+          for (let c = 0; c < 4; c++) {
+            if (grid[r][c] === 0) return true;
+            if (r < 3 && grid[r][c] === grid[r + 1][c]) return true;
+            if (c < 3 && grid[r][c] === grid[r][c + 1]) return true;
+          }
+        }
+        return false;
+      }
+
+      window.addEventListener('keydown', function (e) {
+        const k = e.key.toLowerCase();
+        if (['arrowup', 'arrowdown', 'arrowleft', 'arrowright'].includes(k)) e.preventDefault();
+        if (k === 'arrowleft' || k === 'a') move('left');
+        else if (k === 'arrowright' || k === 'd') move('right');
+        else if (k === 'arrowup' || k === 'w') move('up');
+        else if (k === 'arrowdown' || k === 's') move('down');
+      });
+
+      let startX = 0, startY = 0;
+      boardEl.addEventListener('pointerdown', function (e) {
+        startX = e.clientX;
+        startY = e.clientY;
+      });
+      boardEl.addEventListener('pointerup', function (e) {
+        const dx = e.clientX - startX;
+        const dy = e.clientY - startY;
+        if (Math.max(Math.abs(dx), Math.abs(dy)) < 24) return;
+        if (Math.abs(dx) > Math.abs(dy)) move(dx > 0 ? 'right' : 'left');
+        else move(dy > 0 ? 'down' : 'up');
+      });
+
+      restartBtn.addEventListener('click', init);
+      playAgainBtn.addEventListener('click', init);
+      muteBtn.addEventListener('click', function () {
+        GameAudio.toggleMute(muteBtn);
+      });
+
+      init();
+    })();
+  </script>
+</body>
+</html>

@@ -1,0 +1,292 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Orbit Dodger</title>
+  <link rel="stylesheet" href="/games/game-shell.css" />
+</head>
+<body>
+  <div class="game-shell">
+    <header class="hud">
+      <div class="hud-title">Orbit Dodger</div>
+      <div class="hud-stats">
+        <span class="hud-stat">Score<strong id="score">0</strong></span>
+        <span class="hud-stat">Best<strong id="best">0</strong></span>
+        <span class="hud-stat">Wave<strong id="wave">1</strong></span>
+      </div>
+      <div class="hud-actions">
+        <button class="btn" id="pauseBtn" type="button">Pause</button>
+        <button class="btn" id="muteBtn" type="button">Sound: On</button>
+      </div>
+    </header>
+
+    <main class="stage">
+      <canvas id="canvas" width="600" height="400"></canvas>
+      <div class="overlay" id="overlay">
+        <div class="overlay-card">
+          <h2 id="overlayTitle">Orbit Dodger</h2>
+          <div class="overlay-score hidden" id="overlayScore">0</div>
+          <p id="overlayText">Steer with Arrow keys, WASD, or mouse pointer. Dodge asteroids and collect amber fuel cells.</p>
+          <div class="overlay-actions">
+            <button class="btn btn-primary" id="startBtn" type="button">Start Flight</button>
+          </div>
+        </div>
+      </div>
+    </main>
+  </div>
+
+  <script src="/games/game-audio.js"></script>
+  <script>
+    (function () {
+      const canvas = document.getElementById('canvas');
+      const ctx = canvas.getContext('2d');
+      const scoreEl = document.getElementById('score');
+      const bestEl = document.getElementById('best');
+      const waveEl = document.getElementById('wave');
+      const overlay = document.getElementById('overlay');
+      const overlayTitle = document.getElementById('overlayTitle');
+      const overlayScore = document.getElementById('overlayScore');
+      const overlayText = document.getElementById('overlayText');
+      const startBtn = document.getElementById('startBtn');
+      const pauseBtn = document.getElementById('pauseBtn');
+      const muteBtn = document.getElementById('muteBtn');
+
+      GameAudio.syncButton(muteBtn);
+
+      let state = 'TITLE_MENU';
+      let rafId = null;
+      let score = 0;
+      let best = Number(localStorage.getItem('arcadedeck_dodger_best') || 0);
+      let frame = 0;
+      bestEl.textContent = String(best);
+
+      const keys = {};
+      const ship = { x: 300, y: 330, r: 13, speed: 5.2 };
+      let stars = Array.from({ length: 55 }, function () {
+        return { x: Math.random() * 600, y: Math.random() * 400, s: 1 + Math.random() * 1.8, v: 0.7 + Math.random() * 1.8 };
+      });
+      let rocks = [];
+      let cells = [];
+
+      function startGame() {
+        if (rafId) cancelAnimationFrame(rafId);
+        ship.x = 300;
+        ship.y = 330;
+        rocks = [];
+        cells = [];
+        score = 0;
+        frame = 0;
+        scoreEl.textContent = '0';
+        waveEl.textContent = '1';
+        state = 'PLAYING';
+        overlay.classList.add('hidden');
+        pauseBtn.textContent = 'Pause';
+        loop();
+      }
+
+      function togglePause() {
+        if (state === 'PLAYING') {
+          state = 'PAUSED';
+          if (rafId) cancelAnimationFrame(rafId);
+          pauseBtn.textContent = 'Resume';
+          overlayTitle.textContent = 'Paused';
+          overlayScore.classList.add('hidden');
+          overlayText.textContent = 'Press P or click Resume to continue flying.';
+          startBtn.textContent = 'Resume';
+          overlay.classList.remove('hidden');
+        } else if (state === 'PAUSED') {
+          state = 'PLAYING';
+          pauseBtn.textContent = 'Pause';
+          overlay.classList.add('hidden');
+          loop();
+        }
+      }
+
+      function update() {
+        frame++;
+        const wave = 1 + Math.floor(score / 250);
+        waveEl.textContent = String(wave);
+
+        if (keys['arrowleft'] || keys['a']) ship.x -= ship.speed;
+        if (keys['arrowright'] || keys['d']) ship.x += ship.speed;
+        if (keys['arrowup'] || keys['w']) ship.y -= ship.speed;
+        if (keys['arrowdown'] || keys['s']) ship.y += ship.speed;
+        ship.x = Math.max(18, Math.min(canvas.width - 18, ship.x));
+        ship.y = Math.max(24, Math.min(canvas.height - 20, ship.y));
+
+        for (let i = 0; i < stars.length; i++) {
+          stars[i].y += stars[i].v + wave * 0.2;
+          if (stars[i].y > canvas.height) {
+            stars[i].y = -4;
+            stars[i].x = Math.random() * canvas.width;
+          }
+        }
+
+        const spawnEvery = Math.max(14, 34 - wave * 3);
+        if (frame % spawnEvery === 0) {
+          const r = 12 + Math.random() * 18;
+          rocks.push({
+            x: r + Math.random() * (canvas.width - r * 2),
+            y: -r,
+            r: r,
+            vx: (Math.random() - 0.5) * 1.4,
+            vy: 2.3 + Math.random() * 2.1 + wave * 0.35
+          });
+        }
+
+        if (frame % 95 === 0) {
+          cells.push({
+            x: 24 + Math.random() * (canvas.width - 48),
+            y: -12,
+            r: 9,
+            vy: 2.4 + wave * 0.2
+          });
+        }
+
+        for (let i = rocks.length - 1; i >= 0; i--) {
+          const rk = rocks[i];
+          rk.x += rk.vx;
+          rk.y += rk.vy;
+          if (rk.y - rk.r > canvas.height) {
+            rocks.splice(i, 1);
+            score += 5;
+            continue;
+          }
+          const dist = Math.hypot(rk.x - ship.x, rk.y - ship.y);
+          if (dist < rk.r + ship.r - 4) {
+            endGame();
+            return;
+          }
+        }
+
+        for (let i = cells.length - 1; i >= 0; i--) {
+          const cl = cells[i];
+          cl.y += cl.vy;
+          if (cl.y - cl.r > canvas.height) {
+            cells.splice(i, 1);
+            continue;
+          }
+          if (Math.hypot(cl.x - ship.x, cl.y - ship.y) < cl.r + ship.r) {
+            cells.splice(i, 1);
+            score += 50;
+            GameAudio.score();
+          }
+        }
+
+        if (frame % 12 === 0) score += 2;
+        scoreEl.textContent = String(score);
+        if (score > best) {
+          best = score;
+          bestEl.textContent = String(best);
+          localStorage.setItem('arcadedeck_dodger_best', String(best));
+        }
+      }
+
+      function endGame() {
+        state = 'GAME_OVER';
+        GameAudio.over();
+        overlayTitle.textContent = 'Hull Impact';
+        overlayScore.textContent = 'Score: ' + score;
+        overlayScore.classList.remove('hidden');
+        overlayText.textContent = 'Best run: ' + best + '. Launch again?';
+        startBtn.textContent = 'Play Again';
+        overlay.classList.remove('hidden');
+      }
+
+      function draw() {
+        ctx.fillStyle = '#0b0f17';
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+        ctx.fillStyle = 'rgba(226, 232, 240, 0.55)';
+        for (let i = 0; i < stars.length; i++) {
+          ctx.fillRect(stars[i].x, stars[i].y, stars[i].s, stars[i].s);
+        }
+
+        // Fuel cells
+        for (let i = 0; i < cells.length; i++) {
+          const c = cells[i];
+          ctx.fillStyle = '#f59e0b';
+          ctx.beginPath();
+          ctx.arc(c.x, c.y, c.r, 0, Math.PI * 2);
+          ctx.fill();
+          ctx.fillStyle = '#fef3c7';
+          ctx.beginPath();
+          ctx.arc(c.x, c.y, 4, 0, Math.PI * 2);
+          ctx.fill();
+        }
+
+        // Asteroids
+        for (let i = 0; i < rocks.length; i++) {
+          const rk = rocks[i];
+          ctx.fillStyle = '#475569';
+          ctx.strokeStyle = '#94a3b8';
+          ctx.lineWidth = 1.5;
+          ctx.beginPath();
+          ctx.arc(rk.x, rk.y, rk.r, 0, Math.PI * 2);
+          ctx.fill();
+          ctx.stroke();
+        }
+
+        // Ship
+        ctx.fillStyle = '#f59e0b';
+        ctx.beginPath();
+        ctx.moveTo(ship.x - 5, ship.y + 12);
+        ctx.lineTo(ship.x, ship.y + 21 + (frame % 6));
+        ctx.lineTo(ship.x + 5, ship.y + 12);
+        ctx.fill();
+
+        ctx.fillStyle = '#f8fafc';
+        ctx.beginPath();
+        ctx.moveTo(ship.x, ship.y - 16);
+        ctx.lineTo(ship.x + 13, ship.y + 13);
+        ctx.lineTo(ship.x, ship.y + 8);
+        ctx.lineTo(ship.x - 13, ship.y + 13);
+        ctx.closePath();
+        ctx.fill();
+      }
+
+      function loop() {
+        if (state !== 'PLAYING') return;
+        update();
+        draw();
+        if (state === 'PLAYING') rafId = requestAnimationFrame(loop);
+      }
+
+      canvas.addEventListener('pointermove', function (e) {
+        if (state !== 'PLAYING' || e.buttons === 0 && e.pointerType === 'touch') return;
+        const rect = canvas.getBoundingClientRect();
+        ship.x = Math.max(18, Math.min(canvas.width - 18, (e.clientX - rect.left) * (canvas.width / rect.width)));
+        ship.y = Math.max(24, Math.min(canvas.height - 20, (e.clientY - rect.top) * (canvas.height / rect.height)));
+      });
+
+      window.addEventListener('keydown', function (e) {
+        const k = e.key.toLowerCase();
+        if (['arrowup', 'arrowdown', 'arrowleft', 'arrowright', ' '].includes(k)) e.preventDefault();
+        keys[k] = true;
+        if (k === 'p' || k === 'escape') {
+          if (state === 'PLAYING' || state === 'PAUSED') togglePause();
+        }
+        if ((k === ' ' || k === 'enter') && (state === 'TITLE_MENU' || state === 'GAME_OVER')) {
+          startGame();
+        }
+      });
+
+      window.addEventListener('keyup', function (e) {
+        keys[e.key.toLowerCase()] = false;
+      });
+
+      startBtn.addEventListener('click', function () {
+        if (state === 'PAUSED') togglePause();
+        else startGame();
+      });
+      pauseBtn.addEventListener('click', togglePause);
+      muteBtn.addEventListener('click', function () {
+        GameAudio.toggleMute(muteBtn);
+      });
+
+      draw();
+    })();
+  </script>
+</body>
+</html>

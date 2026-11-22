@@ -1,0 +1,133 @@
+{
+  "version": "1.0",
+  "games": [
+    {
+      "id": "snake-arcade",
+      "title": "Grid Snake",
+      "category": "Arcade",
+      "description": "Steer the emerald serpent across the grid, collect amber apples, and outgrow your best run without hitting walls.",
+      "controls": "Arrow Keys or WASD",
+      "thumbnail": "/src/assets/images/thumb_snake_arcade_1795378640956.jpg",
+      "iframe": {
+        "src": "/games/snake.html",
+        "title": "Grid Snake Game",
+        "allow": "fullscreen; autoplay",
+        "sandbox": "allow-scripts allow-same-origin",
+        "aspectRatio": "16/10",
+        "html": "<iframe src=\"/games/snake.html\" title=\"Grid Snake Game\" allow=\"fullscreen; autoplay\" sandbox=\"allow-scripts allow-same-origin\" loading=\"lazy\"></iframe>"
+      }
+    },
+    {
+      "id": "2048-tiles",
+      "title": "2048 Merge",
+      "category": "Puzzle",
+      "description": "Slide numbered tiles across the 4x4 tray to combine matching powers of two and forge the 2048 tile.",
+      "controls": "Arrow Keys, WASD, or Swipe",
+      "thumbnail": "/src/assets/images/thumb_2048_tiles_1795378639929.jpg",
+      "iframe": {
+        "src": "/games/2048.html",
+        "title": "2048 Merge Game",
+        "allow": "fullscreen; autoplay",
+        "sandbox": "allow-scripts allow-same-origin",
+        "aspectRatio": "16/10",
+        "html": "<iframe src=\"/games/2048.html\" title=\"2048 Merge Game\" allow=\"fullscreen; autoplay\" sandbox=\"allow-scripts allow-same-origin\" loading=\"lazy\"></iframe>"
+      }
+    },
+    {
+      "id": "brick-breaker",
+      "title": "Brick Breaker",
+      "category": "Arcade",
+      "description": "Deflect the energy ball with your paddle to shatter layered brick formations and clear escalating stages.",
+      "controls": "Mouse, Arrow Keys, or A / D",
+      "thumbnail": "/src/assets/images/thumb_brick_breaker_1795378639950.jpg",
+      "iframe": {
+        "src": "/games/brick-breaker.html",
+        "title": "Brick Breaker Game",
+        "allow": "fullscreen; autoplay",
+        "sandbox": "allow-scripts allow-same-origin",
+        "aspectRatio": "16/10",
+        "html": "<iframe src=\"/games/brick-breaker.html\" title=\"Brick Breaker Game\" allow=\"fullscreen; autoplay\" sandbox=\"allow-scripts allow-same-origin\" loading=\"lazy\"></iframe>"
+      }
+    },
+    {
+      "id": "space-dodger",
+      "title": "Orbit Dodger",
+      "category": "Action",
+      "description": "Pilot your delta starfighter through dense asteroid belts while snagging amber fuel cells for bonus points.",
+      "controls": "Arrow Keys, WASD, or Mouse",
+      "thumbnail": "/src/assets/images/thumb_space_dodger_1795378639348.jpg",
+      "iframe": {
+        "src": "/games/space-dodger.html",
+        "title": "Orbit Dodger Game",
+        "allow": "fullscreen; autoplay",
+        "sandbox": "allow-scripts allow-same-origin",
+        "aspectRatio": "16/10",
+        "html": "<iframe src=\"/games/space-dodger.html\" title=\"Orbit Dodger Game\" allow=\"fullscreen; autoplay\" sandbox=\"allow-scripts allow-same-origin\" loading=\"lazy\"></iframe>"
+      }
+    },
+    {
+      "id": "minesweeper-grid",
+      "title": "Mine Grid",
+      "category": "Puzzle",
+      "description": "Uncover safe slate tiles using numeric proximity clues and flag hidden mines before triggering a blast.",
+      "controls": "Left Click Reveal · Right Click Flag",
+      "thumbnail": "/src/assets/images/thumb_minesweeper_grid_1795378640757.jpg",
+      "iframe": {
+        "src": "/games/minesweeper.html",
+        "title": "Mine Grid Game",
+        "allow": "fullscreen; autoplay",
+        "sandbox": "allow-scripts allow-same-origin",
+        "aspectRatio": "16/10",
+        "html": "<iframe src=\"/games/minesweeper.html\" title=\"Mine Grid Game\" allow=\"fullscreen; autoplay\" sandbox=\"allow-scripts allow-same-origin\" loading=\"lazy\"></iframe>"
+      }
+    },
+    {
+      "id": "pong-rally",
+      "title": "Court Pong",
+      "category": "Action",
+      "description": "Challenge a CPU opponent in fast table rallies with angled paddle spin physics to seven points.",
+      "controls": "W / S, Up / Down, or Mouse",
+      "thumbnail": "/src/assets/images/thumb_pong_rally_1795378640095.jpg",
+      "iframe": {
+        "src": "/games/pong-rally.html",
+        "title": "Court Pong Game",
+        "allow": "fullscreen; autoplay",
+        "sandbox": "allow-scripts allow-same-origin",
+        "aspectRatio": "16/10",
+        "html": "<iframe src=\"/games/pong-rally.html\" title=\"Court Pong Game\" allow=\"fullscreen; autoplay\" sandbox=\"allow-scripts allow-same-origin\" loading=\"lazy\"></iframe>"
+      }
+    },
+    {
+      "id": "flappy-dash",
+      "title": "Sky Hopper",
+      "category": "Action",
+      "description": "Tap to glide your geometric flyer cleanly through stone pillar gates as twilight speed builds.",
+      "controls": "Space, Up Arrow, or Click",
+      "thumbnail": "/src/assets/images/thumb_flappy_dash_1795378640761.jpg",
+      "iframe": {
+        "src": "/games/flappy-dash.html",
+        "title": "Sky Hopper Game",
+        "allow": "fullscreen; autoplay",
+        "sandbox": "allow-scripts allow-same-origin",
+        "aspectRatio": "16/10",
+        "html": "<iframe src=\"/games/flappy-dash.html\" title=\"Sky Hopper Game\" allow=\"fullscreen; autoplay\" sandbox=\"allow-scripts allow-same-origin\" loading=\"lazy\"></iframe>"
+      }
+    },
+    {
+      "id": "tetris-blocks",
+      "title": "Block Stacker",
+      "category": "Puzzle",
+      "description": "Rotate and drop interlocking tetrominoes with ghost placement guides to clear lines and climb levels.",
+      "controls": "Arrows Rotate/Move · Space Hard Drop",
+      "thumbnail": "/src/assets/images/thumb_tetris_blocks_1795378640112.jpg",
+      "iframe": {
+        "src": "/games/tetris-blocks.html",
+        "title": "Block Stacker Game",
+        "allow": "fullscreen; autoplay",
+        "sandbox": "allow-scripts allow-same-origin",
+        "aspectRatio": "16/10",
+        "html": "<iframe src=\"/games/tetris-blocks.html\" title=\"Block Stacker Game\" allow=\"fullscreen; autoplay\" sandbox=\"allow-scripts allow-same-origin\" loading=\"lazy\"></iframe>"
+      }
+    }
+  ]
+}

@@ -1,0 +1,210 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Sky Hopper</title>
+  <link rel="stylesheet" href="/games/game-shell.css" />
+</head>
+<body>
+  <div class="game-shell">
+    <header class="hud">
+      <div class="hud-title">Sky Hopper</div>
+      <div class="hud-stats">
+        <span class="hud-stat">Score<strong id="score">0</strong></span>
+        <span class="hud-stat">Best<strong id="best">0</strong></span>
+      </div>
+      <div class="hud-actions">
+        <button class="btn" id="muteBtn" type="button">Sound: On</button>
+      </div>
+    </header>
+
+    <main class="stage">
+      <canvas id="canvas" width="600" height="400"></canvas>
+      <div class="overlay" id="overlay">
+        <div class="overlay-card">
+          <h2 id="overlayTitle">Sky Hopper</h2>
+          <div class="overlay-score hidden" id="overlayScore">0</div>
+          <p id="overlayText">Press Space, Up Arrow, or click anywhere to flap between twilight stone pillars.</p>
+          <div class="overlay-actions">
+            <button class="btn btn-primary" id="startBtn" type="button">Take Off</button>
+          </div>
+        </div>
+      </div>
+    </main>
+  </div>
+
+  <script src="/games/game-audio.js"></script>
+  <script>
+    (function () {
+      const canvas = document.getElementById('canvas');
+      const ctx = canvas.getContext('2d');
+      const scoreEl = document.getElementById('score');
+      const bestEl = document.getElementById('best');
+      const overlay = document.getElementById('overlay');
+      const overlayTitle = document.getElementById('overlayTitle');
+      const overlayScore = document.getElementById('overlayScore');
+      const overlayText = document.getElementById('overlayText');
+      const startBtn = document.getElementById('startBtn');
+      const muteBtn = document.getElementById('muteBtn');
+
+      GameAudio.syncButton(muteBtn);
+
+      let state = 'TITLE_MENU';
+      let rafId = null;
+      let score = 0;
+      let best = Number(localStorage.getItem('arcadedeck_hopper_best') || 0);
+      let frame = 0;
+      bestEl.textContent = String(best);
+
+      const bird = { x: 140, y: 190, vy: 0, r: 12 };
+      let pipes = [];
+
+      function startGame() {
+        if (rafId) cancelAnimationFrame(rafId);
+        bird.y = 190;
+        bird.vy = -5.6;
+        pipes = [];
+        score = 0;
+        frame = 0;
+        scoreEl.textContent = '0';
+        state = 'PLAYING';
+        overlay.classList.add('hidden');
+        GameAudio.blip();
+        loop();
+      }
+
+      function flap() {
+        if (state === 'PLAYING') {
+          bird.vy = -6.2;
+          GameAudio.blip();
+        }
+      }
+
+      function endGame() {
+        state = 'GAME_OVER';
+        GameAudio.over();
+        overlayTitle.textContent = 'Crashed';
+        overlayScore.textContent = 'Score: ' + score;
+        overlayScore.classList.remove('hidden');
+        overlayText.textContent = 'Best flight: ' + best + '. Flap again?';
+        startBtn.textContent = 'Play Again';
+        overlay.classList.remove('hidden');
+      }
+
+      function update() {
+        frame++;
+        bird.vy += 0.32;
+        bird.y += bird.vy;
+
+        if (bird.y - bird.r < 0) {
+          bird.y = bird.r;
+          bird.vy = 0;
+        }
+        if (bird.y + bird.r > canvas.height - 26) {
+          endGame();
+          return;
+        }
+
+        const speed = Math.min(4.8, 2.7 + score * 0.05);
+        if (frame % 92 === 0) {
+          const gap = Math.max(106, 134 - Math.floor(score / 6) * 3);
+          const topH = 44 + Math.random() * (canvas.height - gap - 110);
+          pipes.push({ x: canvas.width + 10, w: 54, top: topH, gap: gap, scored: false });
+        }
+
+        for (let i = pipes.length - 1; i >= 0; i--) {
+          const p = pipes[i];
+          p.x -= speed;
+
+          if (!p.scored && p.x + p.w < bird.x) {
+            p.scored = true;
+            score++;
+            scoreEl.textContent = String(score);
+            if (score > best) {
+              best = score;
+              bestEl.textContent = String(best);
+              localStorage.setItem('arcadedeck_hopper_best', String(best));
+            }
+            GameAudio.score();
+          }
+
+          if (
+            bird.x + bird.r - 3 > p.x &&
+            bird.x - bird.r + 3 < p.x + p.w &&
+            (bird.y - bird.r + 3 < p.top || bird.y + bird.r - 3 > p.top + p.gap)
+          ) {
+            endGame();
+            return;
+          }
+
+          if (p.x + p.w < -20) pipes.splice(i, 1);
+        }
+      }
+
+      function draw() {
+        const grad = ctx.createLinearGradient(0, 0, 0, canvas.height);
+        grad.addColorStop(0, '#0f172a');
+        grad.addColorStop(1, '#1e293b');
+        ctx.fillStyle = grad;
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+        // Pillars
+        for (let i = 0; i < pipes.length; i++) {
+          const p = pipes[i];
+          ctx.fillStyle = '#34d399';
+          ctx.beginPath();
+          ctx.roundRect(p.x, -4, p.w, p.top + 4, 6);
+          ctx.roundRect(p.x, p.top + p.gap, p.w, canvas.height - (p.top + p.gap) - 26, 6);
+          ctx.fill();
+        }
+
+        // Ground
+        ctx.fillStyle = '#131922';
+        ctx.fillRect(0, canvas.height - 26, canvas.width, 26);
+
+        // Bird
+        ctx.save();
+        ctx.translate(bird.x, bird.y);
+        ctx.rotate(Math.max(-0.45, Math.min(0.7, bird.vy * 0.08)));
+        ctx.fillStyle = '#f59e0b';
+        ctx.beginPath();
+        ctx.moveTo(15, 0);
+        ctx.lineTo(-12, -10);
+        ctx.lineTo(-7, 0);
+        ctx.lineTo(-12, 10);
+        ctx.closePath();
+        ctx.fill();
+        ctx.restore();
+      }
+
+      function loop() {
+        if (state !== 'PLAYING') return;
+        update();
+        draw();
+        if (state === 'PLAYING') rafId = requestAnimationFrame(loop);
+      }
+
+      canvas.addEventListener('pointerdown', function () {
+        flap();
+      });
+
+      window.addEventListener('keydown', function (e) {
+        const k = e.key.toLowerCase();
+        if ([' ', 'arrowup', 'w'].includes(k)) e.preventDefault();
+        if (k === ' ' || k === 'arrowup' || k === 'w') {
+          if (state === 'PLAYING') flap();
+          else if (state === 'TITLE_MENU' || state === 'GAME_OVER') startGame();
+        }
+      });
+
+      startBtn.addEventListener('click', startGame);
+      muteBtn.addEventListener('click', function () {
+        GameAudio.toggleMute(muteBtn);
+      });
+
+      draw();
+    })();
+  </script>
+</body>
+</html>

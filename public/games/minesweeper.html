@@ -1,0 +1,318 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Mine Grid</title>
+  <link rel="stylesheet" href="/games/game-shell.css" />
+  <style>
+    .mine-wrap {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 12px;
+    }
+    .mine-grid {
+      display: grid;
+      gap: 4px;
+      background: #161e29;
+      padding: 10px;
+      border-radius: 10px;
+      border: 1px solid rgba(255,255,255,0.08);
+    }
+    .cell {
+      width: 34px;
+      height: 34px;
+      border: none;
+      border-radius: 5px;
+      background: #273244;
+      color: #f8fafc;
+      font-weight: 700;
+      font-size: 14px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-variant-numeric: tabular-nums;
+      transition: background-color 120ms ease;
+    }
+    .cell:hover:not(.revealed) {
+      background: #334155;
+    }
+    .cell.revealed {
+      background: #11161f;
+      cursor: default;
+    }
+    .cell.mine {
+      background: #991b1b;
+      color: #fef2f2;
+    }
+    .cell.flagged {
+      background: #2d2618;
+      color: #f59e0b;
+    }
+    .n1 { color: #38bdf8; }
+    .n2 { color: #34d399; }
+    .n3 { color: #fb7185; }
+    .n4 { color: #a78bfa; }
+    .n5 { color: #f59e0b; }
+    .n6 { color: #2dd4bf; }
+    .n7 { color: #e2e8f0; }
+    .n8 { color: #94a3b8; }
+  </style>
+</head>
+<body>
+  <div class="game-shell">
+    <header class="hud">
+      <div class="hud-title">Mine Grid</div>
+      <div class="hud-stats">
+        <span class="hud-stat">Mines<strong id="minesLeft">12</strong></span>
+        <span class="hud-stat">Time<strong id="timer">0s</strong></span>
+      </div>
+      <div class="hud-actions">
+        <button class="btn" id="modeBtn" type="button">Mode: Reveal</button>
+        <button class="btn" id="sizeBtn" type="button">9x9</button>
+        <button class="btn" id="resetBtn" type="button">New Board</button>
+        <button class="btn" id="muteBtn" type="button">Sound: On</button>
+      </div>
+    </header>
+
+    <main class="stage">
+      <div class="mine-wrap">
+        <div class="mine-grid" id="grid"></div>
+      </div>
+
+      <div class="overlay hidden" id="overlay">
+        <div class="overlay-card">
+          <h2 id="overlayTitle">Board Cleared</h2>
+          <div class="overlay-score" id="overlayScore">0s</div>
+          <p id="overlayText">Left-click to uncover safe tiles, right-click (or toggle Mode) to flag mines.</p>
+          <div class="overlay-actions">
+            <button class="btn btn-primary" id="playAgainBtn" type="button">New Board</button>
+          </div>
+        </div>
+      </div>
+    </main>
+  </div>
+
+  <script src="/games/game-audio.js"></script>
+  <script>
+    (function () {
+      const gridEl = document.getElementById('grid');
+      const minesLeftEl = document.getElementById('minesLeft');
+      const timerEl = document.getElementById('timer');
+      const modeBtn = document.getElementById('modeBtn');
+      const sizeBtn = document.getElementById('sizeBtn');
+      const resetBtn = document.getElementById('resetBtn');
+      const muteBtn = document.getElementById('muteBtn');
+      const overlay = document.getElementById('overlay');
+      const overlayTitle = document.getElementById('overlayTitle');
+      const overlayScore = document.getElementById('overlayScore');
+      const overlayText = document.getElementById('overlayText');
+      const playAgainBtn = document.getElementById('playAgainBtn');
+
+      GameAudio.syncButton(muteBtn);
+
+      let cols = 9, rows = 9, mineCount = 12;
+      let board = [];
+      let firstClick = true;
+      let gameOver = false;
+      let flagMode = false;
+      let flagsUsed = 0;
+      let revealedCount = 0;
+      let seconds = 0;
+      let timerId = null;
+
+      function startTimer() {
+        if (timerId) clearInterval(timerId);
+        timerId = setInterval(function () {
+          seconds++;
+          timerEl.textContent = seconds + 's';
+        }, 1000);
+      }
+
+      function init() {
+        if (timerId) clearInterval(timerId);
+        timerId = null;
+        seconds = 0;
+        firstClick = true;
+        gameOver = false;
+        flagsUsed = 0;
+        revealedCount = 0;
+        timerEl.textContent = '0s';
+        minesLeftEl.textContent = String(mineCount);
+        overlay.classList.add('hidden');
+        board = [];
+        for (let r = 0; r < rows; r++) {
+          const row = [];
+          for (let c = 0; c < cols; c++) {
+            row.push({ mine: false, revealed: false, flagged: false, adj: 0 });
+          }
+          board.push(row);
+        }
+        render();
+      }
+
+      function placeMines(safeR, safeC) {
+        let placed = 0;
+        while (placed < mineCount) {
+          const r = Math.floor(Math.random() * rows);
+          const c = Math.floor(Math.random() * cols);
+          if (board[r][c].mine) continue;
+          if (Math.abs(r - safeR) <= 1 && Math.abs(c - safeC) <= 1) continue;
+          board[r][c].mine = true;
+          placed++;
+        }
+        for (let r = 0; r < rows; r++) {
+          for (let c = 0; c < cols; c++) {
+            if (board[r][c].mine) continue;
+            let count = 0;
+            for (let dr = -1; dr <= 1; dr++) {
+              for (let dc = -1; dc <= 1; dc++) {
+                const nr = r + dr, nc = c + dc;
+                if (nr >= 0 && nr < rows && nc >= 0 && nc < cols && board[nr][nc].mine) count++;
+              }
+            }
+            board[r][c].adj = count;
+          }
+        }
+      }
+
+      function revealCell(r, c) {
+        if (gameOver) return;
+        const cell = board[r][c];
+        if (cell.revealed || cell.flagged) return;
+
+        if (firstClick) {
+          firstClick = false;
+          placeMines(r, c);
+          startTimer();
+        }
+
+        if (cell.mine) {
+          cell.revealed = true;
+          gameOver = true;
+          if (timerId) clearInterval(timerId);
+          for (let rr = 0; rr < rows; rr++) {
+            for (let cc = 0; cc < cols; cc++) {
+              if (board[rr][cc].mine) board[rr][cc].revealed = true;
+            }
+          }
+          GameAudio.over();
+          render();
+          overlayTitle.textContent = 'Mine Detonated';
+          overlayScore.textContent = seconds + 's';
+          overlayText.textContent = 'A hidden mine was triggered. Try a fresh grid!';
+          overlay.classList.remove('hidden');
+          return;
+        }
+
+        const stack = [[r, c]];
+        while (stack.length > 0) {
+          const pos = stack.pop();
+          const cr = pos[0], cc = pos[1];
+          const cur = board[cr][cc];
+          if (cur.revealed || cur.flagged) continue;
+          cur.revealed = true;
+          revealedCount++;
+          if (cur.adj === 0) {
+            for (let dr = -1; dr <= 1; dr++) {
+              for (let dc = -1; dc <= 1; dc++) {
+                const nr = cr + dr, nc = cc + dc;
+                if (nr >= 0 && nr < rows && nc >= 0 && nc < cols && !board[nr][nc].revealed) {
+                  stack.push([nr, nc]);
+                }
+              }
+            }
+          }
+        }
+
+        GameAudio.blip();
+        render();
+
+        if (revealedCount === rows * cols - mineCount) {
+          gameOver = true;
+          if (timerId) clearInterval(timerId);
+          GameAudio.win();
+          overlayTitle.textContent = 'Grid Cleared!';
+          overlayScore.textContent = seconds + 's';
+          overlayText.textContent = 'Every safe tile uncovered without a single detonation.';
+          overlay.classList.remove('hidden');
+        }
+      }
+
+      function toggleFlag(r, c) {
+        if (gameOver) return;
+        const cell = board[r][c];
+        if (cell.revealed) return;
+        cell.flagged = !cell.flagged;
+        flagsUsed += cell.flagged ? 1 : -1;
+        minesLeftEl.textContent = String(Math.max(0, mineCount - flagsUsed));
+        GameAudio.hit();
+        render();
+      }
+
+      function render() {
+        gridEl.style.gridTemplateColumns = 'repeat(' + cols + ', 34px)';
+        gridEl.innerHTML = '';
+        for (let r = 0; r < rows; r++) {
+          for (let c = 0; c < cols; c++) {
+            const cell = board[r][c];
+            const btn = document.createElement('button');
+            btn.type = 'button';
+            btn.className = 'cell';
+            if (cell.revealed) {
+              btn.classList.add('revealed');
+              if (cell.mine) {
+                btn.classList.add('mine');
+                btn.textContent = '✕';
+              } else if (cell.adj > 0) {
+                btn.classList.add('n' + cell.adj);
+                btn.textContent = String(cell.adj);
+              }
+            } else if (cell.flagged) {
+              btn.classList.add('flagged');
+              btn.textContent = '⚑';
+            }
+
+            btn.addEventListener('click', function () {
+              if (flagMode) toggleFlag(r, c);
+              else revealCell(r, c);
+            });
+            btn.addEventListener('contextmenu', function (e) {
+              e.preventDefault();
+              toggleFlag(r, c);
+            });
+            gridEl.appendChild(btn);
+          }
+        }
+      }
+
+      modeBtn.addEventListener('click', function () {
+        flagMode = !flagMode;
+        modeBtn.textContent = flagMode ? 'Mode: Flag' : 'Mode: Reveal';
+        modeBtn.classList.toggle('btn-primary', flagMode);
+      });
+
+      sizeBtn.addEventListener('click', function () {
+        if (cols === 9) {
+          cols = 12; rows = 10; mineCount = 20;
+          sizeBtn.textContent = '12x10';
+        } else {
+          cols = 9; rows = 9; mineCount = 12;
+          sizeBtn.textContent = '9x9';
+        }
+        init();
+      });
+
+      resetBtn.addEventListener('click', init);
+      playAgainBtn.addEventListener('click', init);
+      muteBtn.addEventListener('click', function () {
+        GameAudio.toggleMute(muteBtn);
+      });
+
+      init();
+    })();
+  </script>
+</body>
+</html>

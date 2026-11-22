@@ -1,0 +1,296 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Grid Snake</title>
+  <link rel="stylesheet" href="/games/game-shell.css" />
+  <style>
+    .touch-pad {
+      display: none;
+      grid-template-columns: repeat(3, 46px);
+      gap: 6px;
+      margin-top: 10px;
+    }
+    @media (pointer: coarse), (max-width: 640px) {
+      .touch-pad { display: grid; }
+    }
+    .touch-pad button {
+      height: 44px;
+      border-radius: 6px;
+      border: 1px solid rgba(255,255,255,0.14);
+      background: #1c2430;
+      color: #f8fafc;
+      font-weight: 700;
+      cursor: pointer;
+    }
+  </style>
+</head>
+<body>
+  <div class="game-shell">
+    <header class="hud">
+      <div class="hud-title">Grid Snake</div>
+      <div class="hud-stats">
+        <span class="hud-stat">Score<strong id="score">0</strong></span>
+        <span class="hud-stat">Best<strong id="best">0</strong></span>
+        <span class="hud-stat">Speed<strong id="speed">1x</strong></span>
+      </div>
+      <div class="hud-actions">
+        <button class="btn" id="pauseBtn" type="button">Pause</button>
+        <button class="btn" id="muteBtn" type="button">Sound: On</button>
+      </div>
+    </header>
+
+    <main class="stage" style="flex-direction: column;">
+      <canvas id="board" width="520" height="400"></canvas>
+      <div class="touch-pad" aria-label="Directional controls">
+        <span></span><button type="button" data-dir="up">↑</button><span></span>
+        <button type="button" data-dir="left">←</button><button type="button" data-dir="down">↓</button><button type="button" data-dir="right">→</button>
+      </div>
+
+      <div class="overlay" id="overlay">
+        <div class="overlay-card">
+          <h2 id="overlayTitle">Grid Snake</h2>
+          <div class="overlay-score hidden" id="overlayScore">0</div>
+          <p id="overlayText">Use Arrow keys or WASD to guide the serpent and eat amber apples. Press P to pause.</p>
+          <div class="overlay-actions">
+            <button class="btn btn-primary" id="startBtn" type="button">Start Game</button>
+          </div>
+        </div>
+      </div>
+    </main>
+  </div>
+
+  <script src="/games/game-audio.js"></script>
+  <script>
+    (function () {
+      const canvas = document.getElementById('board');
+      const ctx = canvas.getContext('2d');
+      const scoreEl = document.getElementById('score');
+      const bestEl = document.getElementById('best');
+      const speedEl = document.getElementById('speed');
+      const overlay = document.getElementById('overlay');
+      const overlayTitle = document.getElementById('overlayTitle');
+      const overlayScore = document.getElementById('overlayScore');
+      const overlayText = document.getElementById('overlayText');
+      const startBtn = document.getElementById('startBtn');
+      const pauseBtn = document.getElementById('pauseBtn');
+      const muteBtn = document.getElementById('muteBtn');
+
+      GameAudio.syncButton(muteBtn);
+
+      const COLS = 26;
+      const ROWS = 20;
+      const CELL = 20;
+
+      let state = 'TITLE_MENU'; // TITLE_MENU | PLAYING | PAUSED | GAME_OVER
+      let snake = [];
+      let dir = { x: 1, y: 0 };
+      let queue = [];
+      let apple = { x: 16, y: 10 };
+      let score = 0;
+      let best = Number(localStorage.getItem('arcadedeck_snake_best') || 0);
+      let timerId = null;
+
+      bestEl.textContent = String(best);
+
+      function spawnApple() {
+        const occupied = new Set(snake.map(function (s) { return s.x + ',' + s.y; }));
+        const free = [];
+        for (let y = 0; y < ROWS; y++) {
+          for (let x = 0; x < COLS; x++) {
+            if (!occupied.has(x + ',' + y)) free.push({ x: x, y: y });
+          }
+        }
+        if (free.length === 0) return;
+        apple = free[Math.floor(Math.random() * free.length)];
+      }
+
+      function getDelay() {
+        return Math.max(58, 125 - Math.floor(score / 30) * 8);
+      }
+
+      function resetGame() {
+        if (timerId) clearTimeout(timerId);
+        snake = [
+          { x: 10, y: 10 },
+          { x: 9, y: 10 },
+          { x: 8, y: 10 }
+        ];
+        dir = { x: 1, y: 0 };
+        queue = [];
+        score = 0;
+        scoreEl.textContent = '0';
+        speedEl.textContent = '1.0x';
+        spawnApple();
+        state = 'PLAYING';
+        overlay.classList.add('hidden');
+        pauseBtn.textContent = 'Pause';
+        draw();
+        scheduleTick();
+      }
+
+      function scheduleTick() {
+        if (timerId) clearTimeout(timerId);
+        if (state !== 'PLAYING') return;
+        const delay = getDelay();
+        speedEl.textContent = (125 / delay).toFixed(1) + 'x';
+        timerId = setTimeout(function () {
+          step();
+          scheduleTick();
+        }, delay);
+      }
+
+      function step() {
+        if (state !== 'PLAYING') return;
+        if (queue.length > 0) {
+          dir = queue.shift();
+        }
+        const head = { x: snake[0].x + dir.x, y: snake[0].y + dir.y };
+
+        if (head.x < 0 || head.x >= COLS || head.y < 0 || head.y >= ROWS) {
+          endGame();
+          return;
+        }
+        for (let i = 0; i < snake.length - 1; i++) {
+          if (snake[i].x === head.x && snake[i].y === head.y) {
+            endGame();
+            return;
+          }
+        }
+
+        snake.unshift(head);
+        if (head.x === apple.x && head.y === apple.y) {
+          score += 10;
+          scoreEl.textContent = String(score);
+          if (score > best) {
+            best = score;
+            bestEl.textContent = String(best);
+            localStorage.setItem('arcadedeck_snake_best', String(best));
+          }
+          GameAudio.score();
+          spawnApple();
+        } else {
+          snake.pop();
+        }
+        draw();
+      }
+
+      function endGame() {
+        state = 'GAME_OVER';
+        if (timerId) clearTimeout(timerId);
+        GameAudio.over();
+        overlayTitle.textContent = 'Game Over';
+        overlayScore.textContent = 'Score: ' + score;
+        overlayScore.classList.remove('hidden');
+        overlayText.textContent = 'Your run ended. Press Start or Space to play again.';
+        startBtn.textContent = 'Play Again';
+        overlay.classList.remove('hidden');
+        draw();
+      }
+
+      function togglePause() {
+        if (state === 'PLAYING') {
+          state = 'PAUSED';
+          if (timerId) clearTimeout(timerId);
+          pauseBtn.textContent = 'Resume';
+          overlayTitle.textContent = 'Paused';
+          overlayScore.classList.add('hidden');
+          overlayText.textContent = 'Take a breather. Click Resume or press P to continue.';
+          startBtn.textContent = 'Resume';
+          overlay.classList.remove('hidden');
+        } else if (state === 'PAUSED') {
+          state = 'PLAYING';
+          pauseBtn.textContent = 'Pause';
+          overlay.classList.add('hidden');
+          scheduleTick();
+        }
+      }
+
+      function queueDir(nx, ny) {
+        const last = queue.length > 0 ? queue[queue.length - 1] : dir;
+        if (last.x + nx === 0 && last.y + ny === 0) return;
+        if (last.x === nx && last.y === ny) return;
+        if (queue.length < 2) queue.push({ x: nx, y: ny });
+      }
+
+      function draw() {
+        ctx.fillStyle = '#0e131a';
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+        ctx.strokeStyle = 'rgba(255,255,255,0.035)';
+        ctx.lineWidth = 1;
+        for (let x = 0; x <= COLS; x++) {
+          ctx.beginPath();
+          ctx.moveTo(x * CELL, 0);
+          ctx.lineTo(x * CELL, canvas.height);
+          ctx.stroke();
+        }
+        for (let y = 0; y <= ROWS; y++) {
+          ctx.beginPath();
+          ctx.moveTo(0, y * CELL);
+          ctx.lineTo(canvas.width, y * CELL);
+          ctx.stroke();
+        }
+
+        // Apple
+        ctx.fillStyle = '#f59e0b';
+        ctx.beginPath();
+        ctx.roundRect(apple.x * CELL + 3, apple.y * CELL + 3, CELL - 6, CELL - 6, 5);
+        ctx.fill();
+
+        // Snake
+        for (let i = snake.length - 1; i >= 0; i--) {
+          const seg = snake[i];
+          ctx.fillStyle = i === 0 ? '#34d399' : '#10b981';
+          ctx.beginPath();
+          ctx.roundRect(seg.x * CELL + 1.5, seg.y * CELL + 1.5, CELL - 3, CELL - 3, i === 0 ? 5 : 4);
+          ctx.fill();
+        }
+      }
+
+      window.addEventListener('keydown', function (e) {
+        const key = e.key.toLowerCase();
+        if (['arrowup', 'arrowdown', 'arrowleft', 'arrowright', ' '].includes(key)) {
+          e.preventDefault();
+        }
+        if (key === 'p' || key === 'escape') {
+          if (state === 'PLAYING' || state === 'PAUSED') togglePause();
+          return;
+        }
+        if ((key === ' ' || key === 'enter') && (state === 'TITLE_MENU' || state === 'GAME_OVER')) {
+          resetGame();
+          return;
+        }
+        if (state !== 'PLAYING') return;
+        if (key === 'arrowup' || key === 'w') queueDir(0, -1);
+        else if (key === 'arrowdown' || key === 's') queueDir(0, 1);
+        else if (key === 'arrowleft' || key === 'a') queueDir(-1, 0);
+        else if (key === 'arrowright' || key === 'd') queueDir(1, 0);
+      });
+
+      document.querySelectorAll('[data-dir]').forEach(function (btn) {
+        btn.addEventListener('click', function () {
+          if (state !== 'PLAYING') return;
+          const d = btn.getAttribute('data-dir');
+          if (d === 'up') queueDir(0, -1);
+          if (d === 'down') queueDir(0, 1);
+          if (d === 'left') queueDir(-1, 0);
+          if (d === 'right') queueDir(1, 0);
+        });
+      });
+
+      startBtn.addEventListener('click', function () {
+        if (state === 'PAUSED') togglePause();
+        else resetGame();
+      });
+      pauseBtn.addEventListener('click', togglePause);
+      muteBtn.addEventListener('click', function () {
+        GameAudio.toggleMute(muteBtn);
+      });
+
+      draw();
+    })();
+  </script>
+</body>
+</html>
